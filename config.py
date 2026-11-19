@@ -48,14 +48,19 @@ DEFAULT_ADMIN_PASSWORD = "admin123"  # Will be hashed before storing
 
 def get_app_data_dir() -> str:
     """Get the application data directory for storing the database."""
-    if sys.platform == "win32":
-        app_data = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-        data_dir = os.path.join(app_data, "BloodBankManager")
-    else:
-        data_dir = os.path.join(os.path.expanduser("~"), ".bloodbankmanager")
-
-    os.makedirs(data_dir, exist_ok=True)
-    return data_dir
+    try:
+        if sys.platform == "win32":
+            app_data = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+            data_dir = os.path.join(app_data, "BloodBankManager")
+        else:
+            data_dir = os.path.join(os.path.expanduser("~"), ".bloodbankmanager")
+        os.makedirs(data_dir, exist_ok=True)
+        return data_dir
+    except (PermissionError, OSError):
+        # Fallback to local directory if AppData is not accessible/writable
+        local_dir = os.path.join(os.path.abspath("."), "data")
+        os.makedirs(local_dir, exist_ok=True)
+        return local_dir
 
 
 def resource_path(relative_path: str) -> str:
