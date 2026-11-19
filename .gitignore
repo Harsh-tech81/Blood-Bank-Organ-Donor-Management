@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
+Implementation.md
 # ─── Virtual Environment ─────────────────────────────────────────
 venv/
 env/
