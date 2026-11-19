@@ -3,7 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-Implementation.md
 # ─── Virtual Environment ─────────────────────────────────────────
 venv/
 env/
@@ -36,3 +35,4 @@ desktop.ini
 *.log
 *.bak
 *.tmp
+Implementation.md
