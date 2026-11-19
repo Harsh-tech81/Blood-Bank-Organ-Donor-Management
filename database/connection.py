@@ -8,7 +8,7 @@ import os
 import sys
 import sqlite3
 
-from config import DB_NAME, get_app_data_dir, resource_path
+import config as app_config
 
 
 def get_db_path() -> str:
@@ -16,8 +16,8 @@ def get_db_path() -> str:
     Get the database file path.
     Stores DB in AppData/Local/BloodBankManager/ on Windows.
     """
-    db_dir = get_app_data_dir()
-    return os.path.join(db_dir, DB_NAME)
+    db_dir = app_config.get_app_data_dir()
+    return os.path.join(db_dir, app_config.DB_NAME)
 
 
 def get_connection() -> sqlite3.Connection:
@@ -34,7 +34,7 @@ def get_connection() -> sqlite3.Connection:
 
 def get_schema_sql() -> str:
     """Read the schema.sql file (works in dev and .exe)."""
-    schema_path = resource_path(os.path.join("database", "schema.sql"))
+    schema_path = app_config.resource_path(os.path.join("database", "schema.sql"))
     with open(schema_path, "r", encoding="utf-8") as f:
         return f.read()
 

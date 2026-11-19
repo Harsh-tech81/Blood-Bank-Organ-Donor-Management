@@ -10,9 +10,9 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Override the DB path before importing models
+# Override the DB path to use a temp directory for testing
 import config
-_temp_dir = tempfile.mkdtemp()
+_temp_dir = tempfile.mkdtemp(dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tests"))
 config.get_app_data_dir = lambda: _temp_dir
 
 from database import initialize_db
