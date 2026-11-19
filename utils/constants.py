@@ -27,7 +27,7 @@ URGENCY_LEVELS = ["Normal", "Urgent", "Critical"]
 
 # ─── Request Statuses ────────────────────────────────────────────
 BLOOD_REQUEST_STATUSES = ["Pending", "Approved", "Fulfilled", "Rejected"]
-ORGAN_REQUEST_STATUSES = ["Pending", "Matched", "Fulfilled", "Rejected"]
+ORGAN_REQUEST_STATUSES = ["Pending", "Proposed", "Matched", "Fulfilled", "Rejected"]
 
 # ─── Consent Statuses (Organ Donors) ────────────────────────────
 CONSENT_STATUSES = ["Pending", "Consented", "Withdrawn"]
@@ -66,6 +66,7 @@ ORGAN_DONOR_TABLE_COLUMNS = [
     ("Blood Group", 100),
     ("Organ", 100),
     ("Consent", 90),
+    ("Review", 90),
     ("Status", 90),
     ("Registered On", 120),
 ]

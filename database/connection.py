@@ -52,6 +52,87 @@ def initialize_db():
     schema_sql = get_schema_sql()
     cursor.executescript(schema_sql)
 
+    # Rebuild the pre-workflow allocation table so its status constraint can
+    # represent proposals and authority approval without losing history.
+    cursor.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'organ_allocations'"
+    )
+    allocation_sql = cursor.fetchone()[0] or ""
+    if "Proposed" not in allocation_sql:
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'organ_allocation_events'"
+        )
+        if cursor.fetchone():
+            cursor.execute(
+                "CREATE TABLE organ_allocation_events_legacy AS "
+                "SELECT * FROM organ_allocation_events"
+            )
+            cursor.execute("DROP TABLE organ_allocation_events")
+        cursor.execute(
+            """CREATE TABLE organ_allocations_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                organ_request_id INTEGER NOT NULL,
+                donor_id INTEGER NOT NULL,
+                recipient_id INTEGER,
+                hospital_id INTEGER,
+                status TEXT NOT NULL DEFAULT 'Reserved'
+                    CHECK(status IN ('Proposed', 'Authority Approved', 'Reserved',
+                                     'Fulfilled', 'Rejected', 'Cancelled', 'Expired')),
+                allocated_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                fulfilled_on TEXT,
+                notes TEXT,
+                FOREIGN KEY (organ_request_id) REFERENCES organ_requests(id) ON DELETE CASCADE,
+                FOREIGN KEY (donor_id) REFERENCES organ_donors(id) ON DELETE RESTRICT,
+                FOREIGN KEY (recipient_id) REFERENCES recipients(id) ON DELETE SET NULL,
+                FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE SET NULL
+            )"""
+        )
+        cursor.execute(
+            """INSERT INTO organ_allocations_new
+               (id, organ_request_id, donor_id, recipient_id, hospital_id,
+                status, allocated_on, fulfilled_on, notes)
+               SELECT id, organ_request_id, donor_id, recipient_id, hospital_id,
+                      status, allocated_on, fulfilled_on, notes
+               FROM organ_allocations"""
+        )
+        cursor.execute("DROP TABLE organ_allocations")
+        cursor.execute(
+            "ALTER TABLE organ_allocations_new RENAME TO organ_allocations"
+        )
+        cursor.execute(
+            """CREATE TABLE organ_allocation_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                allocation_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                previous_status TEXT,
+                new_status TEXT NOT NULL,
+                actor_id INTEGER,
+                notes TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (allocation_id) REFERENCES organ_allocations(id) ON DELETE CASCADE,
+                FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+            )"""
+        )
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'organ_allocation_events_legacy'"
+        )
+        if cursor.fetchone():
+            cursor.execute(
+                """INSERT INTO organ_allocation_events
+                   (id, allocation_id, event_type, previous_status,
+                    new_status, actor_id, notes, created_at)
+                   SELECT id, allocation_id, event_type, previous_status,
+                          new_status, actor_id, notes, created_at
+                   FROM organ_allocation_events_legacy"""
+            )
+            cursor.execute("DROP TABLE organ_allocation_events_legacy")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_organ_allocations_request "
+            "ON organ_allocations(organ_request_id)"
+        )
+
     # Migrate databases created before recipient, hospital, and allocation
     # references were persisted. SQLite cannot add a foreign key to an
     # existing table, but nullable reference columns preserve old records.
@@ -60,11 +141,19 @@ def initialize_db():
         ("blood_requests", "hospital_id"),
         ("organ_requests", "recipient_id"),
         ("organ_requests", "hospital_id"),
+        ("organ_donors", "review_status"),
+        ("organ_requests", "review_status"),
     ):
         cursor.execute(f"PRAGMA table_info({table})")
         columns = {row[1] for row in cursor.fetchall()}
         if column not in columns:
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER")
+            if column.endswith("_id"):
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} INTEGER")
+            else:
+                cursor.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {column} "
+                    "TEXT NOT NULL DEFAULT 'Pending'"
+                )
 
     # Migrate databases created before donor reservations were persisted.
     cursor.execute("PRAGMA table_info(organ_requests)")

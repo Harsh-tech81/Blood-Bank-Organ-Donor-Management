@@ -24,7 +24,8 @@
 - 🫀 **Organ Donor Registry & Bioethical Consent Tracking:**
   - Dedicated pledge management supporting Kidney, Liver, Heart, Lungs, Pancreas, Cornea, etc.
   - Explicit **Legal Consent Tracking** (`Pending`, `Consented`, `Withdrawn`) to ensure bioethical and legal compliance.
-  - **Donor Allocation Safeguards:** Organ requests can only be matched and fulfilled if an active, legally consented donor (`Consented` + `Available`) exists in the registry. Upon fulfillment, the donor is transitioned to `Donated` to prevent double-allocation.
+  - **Workflow Safeguards:** Consent, donor review, recipient-request review, and external transplant-authority authorization are recorded separately before an allocation can be reserved.
+  - The application demonstrates administrative workflow only; it does not determine clinical eligibility, compatibility, transplant priority, or legal validity.
 - 🖥️ **Modern Desktop UI & Micro-Interactions:**
   - Glassmorphism dark aesthetic: deep slate (`#0b0f19`), elevated card surfaces (`#131b2e`), and vibrant status accents.
   - **Animated Metric Counters:** Dashboard statistics count up smoothly from `0` to their real-time values.
@@ -105,7 +106,8 @@ BloodBank-OrganDonor/
 │   ├── inventory_model.py         # Stock level calculations & arithmetic
 │   ├── organ_donor_model.py       # Organ registry & consent status queries
 │   ├── blood_request_model.py     # Blood demand records with triage sorting
-│   ├── organ_request_model.py     # Organ match queues with triage sorting
+│   ├── organ_request_model.py     # Organ proposals and approval-gated queues
+│   ├── organ_workflow_model.py    # Reviews and external authorization records
 │   ├── recipient_model.py         # Normalized recipient records
 │   ├── hospital_model.py          # Normalized hospital records
 │   ├── organ_allocation_model.py  # Donor-recipient allocation history
@@ -152,7 +154,7 @@ BloodBank-OrganDonor/
 
 ---
 
-## 🗄️ Relational Database Schema (12 Tables)
+## 🗄️ Relational Database Schema (16 Tables)
 
 ```mermaid
 erDiagram
@@ -295,6 +297,15 @@ contains:
 | `hospitals` | Canonical hospital directory referenced by requests and allocations |
 | `organ_allocations` | Durable donor-to-recipient allocation and status history |
 | `blood_inventory_batches` | Donation-level stock tracking with FIFO consumption and expiry |
+| `organ_donor_reviews` | Authorized administrative donor review decisions |
+| `organ_request_reviews` | Authorized recipient/request review decisions |
+| `transplant_authorizations` | External transplant-authority references and decisions |
+| `organ_allocation_events` | Auditable allocation status transition history |
+
+Organ allocation is intentionally a workflow demonstration. The application
+records consent, administrative reviews, external authority references, and
+status transitions; it does not make clinical eligibility, compatibility, or
+transplant-priority decisions.
 
 Database initialization enables foreign keys, adds missing nullable reference
 columns to older databases, and backfills recipient/hospital references from

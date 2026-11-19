@@ -7,6 +7,7 @@ import unittest
 import config
 from database import initialize_db
 from database.connection import get_connection
+from services.auth_service import login
 from models.donor_model import add_donor, record_donation_with_batch
 from models.blood_request_model import add_blood_request, fulfill_blood_request
 from models.inventory_model import get_inventory_by_blood_group, increment_units
@@ -14,6 +15,8 @@ from models.organ_donor_model import add_organ_donor
 from models.organ_request_model import add_organ_request
 from models.organ_allocation_model import get_all_allocations
 from services.organ_request_service import change_organ_request_status
+from services.organ_request_service import review_request, propose_allocation, authorize_transplant
+from services.organ_service import review_donor
 
 
 class TestDatabaseEnhancements(unittest.TestCase):
@@ -22,6 +25,7 @@ class TestDatabaseEnhancements(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp(dir=os.path.join(project_root, "tests"))
         config.get_app_data_dir = lambda: self.temp_dir
         initialize_db()
+        login("admin", "admin123")
 
     def test_request_creates_reusable_recipient_and_hospital_references(self):
         first_id = add_blood_request(
@@ -92,6 +96,13 @@ class TestDatabaseEnhancements(unittest.TestCase):
         request_id = add_organ_request(
             "Allocation Recipient", "Kidney", "A+", "Regional Hospital"
         )
+        self.assertTrue(review_donor(donor_id, "Verified", "Registry documents reviewed.")[0])
+        self.assertTrue(review_request(request_id, "Approved", "Recipient request reviewed.")[0])
+        self.assertTrue(propose_allocation(request_id)[0])
+        self.assertTrue(authorize_transplant(
+            request_id, donor_id, "Academic Transplant Authority",
+            "AUTH-001", "External authorization recorded for demonstration.",
+        )[0])
         self.assertTrue(change_organ_request_status(request_id, "Matched")[0])
         self.assertTrue(change_organ_request_status(request_id, "Fulfilled")[0])
 
