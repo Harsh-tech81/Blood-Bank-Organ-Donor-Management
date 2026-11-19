@@ -26,24 +26,42 @@ SIDEBAR_WIDTH = 220
 
 # ─── Colors ──────────────────────────────────────────────────────
 COLORS = {
-    "primary": "#1f6aa5",
-    "secondary": "#2b2b2b",
-    "success": "#28a745",
-    "danger": "#dc3545",
-    "warning": "#ffc107",
-    "info": "#17a2b8",
-    "light": "#f8f9fa",
-    "dark": "#343a40",
-    "sidebar_bg": "#1a1a2e",
-    "sidebar_hover": "#16213e",
-    "sidebar_active": "#0f3460",
-    "card_bg": "#2b2b2b",
+    "primary": "#2563eb",         # Vibrant Royal Blue
+    "primary_hover": "#1d4ed8",
+    "secondary": "#1e293b",       # Slate 800
+    "accent_red": "#e11d48",      # Crimson / Blood red
+    "accent_red_hover": "#be123c",
+    "accent_emerald": "#059669",  # Emerald Green
+    "accent_emerald_hover": "#047857",
+    "accent_purple": "#7c3aed",   # Violet
+    "accent_purple_hover": "#6d28d9",
+    "accent_amber": "#d97706",    # Amber
+    "success": "#10b981",         # Mint Success
+    "danger": "#ef4444",          # Rose Danger
+    "warning": "#f59e0b",         # Warning Yellow
+    "info": "#06b6d4",            # Cyan Info
+    "light": "#f8fafc",
+    "dark": "#0f172a",            # Deep background
+    "bg_main": "#0b0f19",         # Ultra-deep dark canvas
+    "surface": "#131b2e",         # Elevated card surface
+    "surface_border": "#1e293b",  # Sleek border
+    "surface_hover": "#1c2640",
+    "sidebar_bg": "#0d1322",      # Deep sidebar
+    "sidebar_hover": "#1e293b",
+    "sidebar_active": "#2563eb",  # Active tab glow
+    "text_primary": "#f8fafc",
+    "text_secondary": "#94a3b8",
+    "text_muted": "#64748b",
 }
 
 # ─── Database ────────────────────────────────────────────────────
 DB_NAME = "bloodbank.db"
 DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "admin123"  # Will be hashed before storing
+DEFAULT_ADMIN_PASSWORD = "admin123"
+
+# Staff account (pre-seeded for role demonstration)
+DEFAULT_STAFF_USERNAME = "staff"
+DEFAULT_STAFF_PASSWORD = "staff123"
 
 
 def get_app_data_dir() -> str:
@@ -55,10 +73,15 @@ def get_app_data_dir() -> str:
         else:
             data_dir = os.path.join(os.path.expanduser("~"), ".bloodbankmanager")
         os.makedirs(data_dir, exist_ok=True)
+        # Test writability by checking if a dummy test file can be touched
+        test_file = os.path.join(data_dir, ".perm_test")
+        with open(test_file, "w") as f:
+            f.write("ok")
+        os.remove(test_file)
         return data_dir
-    except (PermissionError, OSError):
-        # Fallback to local directory if AppData is not accessible/writable
-        local_dir = os.path.join(os.path.abspath("."), "data")
+    except (PermissionError, OSError, Exception):
+        # Fallback to local data directory if AppData is not accessible/writable
+        local_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         os.makedirs(local_dir, exist_ok=True)
         return local_dir
 

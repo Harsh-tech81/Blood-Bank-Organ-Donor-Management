@@ -59,6 +59,21 @@ def get_current_user():
     return _current_user
 
 
-def is_logged_in():
-    """Check if a user is logged in."""
-    return _current_user is not None
+def register_user(username, password, role="staff"):
+    """
+    Register a new user account with hashed password.
+    Returns (success: bool, message: str).
+    """
+    if not username or len(username.strip()) < 3:
+        return False, "Username must be at least 3 characters."
+    if not password or len(password) < 6:
+        return False, "Password must be at least 6 characters."
+
+    existing = get_user_by_username(username.strip())
+    if existing:
+        return False, f"Username '{username.strip()}' already exists."
+
+    pwd_hash = hash_password(password)
+    from models.user_model import create_user
+    user_id = create_user(username.strip(), pwd_hash, role)
+    return True, f"Account '{username.strip()}' created successfully!"

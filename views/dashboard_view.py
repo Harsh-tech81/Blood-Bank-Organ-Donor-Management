@@ -1,6 +1,7 @@
 """
-Dashboard view — main application layout with sidebar navigation.
-Shows summary statistics and acts as the navigation hub.
+Dashboard view — main application layout with sidebar navigation,
+modern analytics cards with animations, inventory visual bars,
+and clinical quick shortcuts.
 """
 
 import customtkinter as ctk
@@ -10,52 +11,62 @@ from components.navbar import Navbar
 from components.stat_card import StatCard
 from models.donor_model import get_donor_count
 from models.organ_donor_model import get_organ_donor_count
-from models.inventory_model import get_total_blood_units
+from models.inventory_model import get_total_blood_units, get_all_inventory
 from models.blood_request_model import get_pending_blood_requests_count
 from models.organ_request_model import get_pending_organ_requests_count
 
 
 class DashboardView(ctk.CTkFrame):
-    """Main app layout: sidebar + navbar + content area."""
+    """Main app layout: sidebar + navbar + content area with sleek dark UI."""
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self.app = master
-        self.configure(fg_color="#0e0e1a")
+        self.configure(fg_color=COLORS["bg_main"])
 
         # ─── Layout: Sidebar | Main Content ──────────────────────
-        self.sidebar = Sidebar(self, on_navigate=self._navigate, active_key="dashboard")
+        self.sidebar = Sidebar(
+            self,
+            on_navigate=self._navigate,
+            active_key="dashboard",
+            username=self.app.current_user or "Admin",
+        )
         self.sidebar.pack(side="left", fill="y")
 
-        # Right side: Navbar + Content
+        # Right side: Navbar + Content Canvas
         right_frame = ctk.CTkFrame(self, fg_color="transparent")
         right_frame.pack(side="right", fill="both", expand=True)
 
-        self.navbar = Navbar(right_frame, title="📊 Dashboard",
-                             username=self.app.current_user or "Admin")
+        self.navbar = Navbar(
+            right_frame,
+            title="Overview & Metrics",
+            username=self.app.current_user or "Admin",
+        )
         self.navbar.pack(fill="x")
 
-        # Content area
-        self.content_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
-        self.content_frame.pack(fill="both", expand=True, padx=20, pady=15)
+        # Scrollable / Responsive Content Area
+        self.content_frame = ctk.CTkScrollableFrame(
+            right_frame,
+            fg_color="transparent",
+            corner_radius=0,
+        )
+        self.content_frame.pack(fill="both", expand=True, padx=24, pady=18)
 
-        # Show dashboard content
         self._show_dashboard()
 
     def _navigate(self, key):
-        """Handle sidebar navigation."""
-        # Clear content area
+        """Handle sidebar navigation between views."""
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
         page_titles = {
-            "dashboard": "📊 Dashboard",
-            "blood_donors": "🩸 Blood Donors",
-            "blood_inventory": "📦 Blood Inventory",
-            "organ_donors": "🫀 Organ Donors",
-            "blood_requests": "📋 Blood Requests",
-            "organ_requests": "📝 Organ Requests",
-            "reports": "📄 Reports",
+            "dashboard": "Overview & Metrics",
+            "blood_donors": "Blood Donors Directory",
+            "blood_inventory": "Blood Bank Stock & Reserves",
+            "organ_donors": "Organ Registry & Pledges",
+            "blood_requests": "Blood Allocation Demands",
+            "organ_requests": "Organ Match Requisitions",
+            "reports": "Clinical Analytics & Exports",
         }
 
         if key == "logout":
@@ -94,21 +105,42 @@ class DashboardView(ctk.CTkFrame):
             view.pack(fill="both", expand=True)
 
     def _show_dashboard(self):
-        """Display the dashboard with stat cards."""
-        # Welcome message
-        welcome = ctk.CTkLabel(
+        """Display the modern dashboard layout."""
+        # Top Hero Greeting Banner
+        banner = ctk.CTkFrame(
             self.content_frame,
-            text="Welcome to Blood Bank & Organ Donors Management System",
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color="#ffffff",
+            fg_color=COLORS["surface"],
+            corner_radius=18,
+            border_width=1,
+            border_color=COLORS["surface_border"],
         )
-        welcome.pack(pady=(10, 20))
+        banner.pack(fill="x", pady=(0, 20))
 
-        # Stat cards row
+        banner_inner = ctk.CTkFrame(banner, fg_color="transparent")
+        banner_inner.pack(fill="x", padx=24, pady=18)
+
+        welcome_title = ctk.CTkLabel(
+            banner_inner,
+            text=f"Welcome back, {self.app.current_user or 'Clinician'} 👋",
+            font=ctk.CTkFont(family="Segoe UI", size=22, weight="bold"),
+            text_color=COLORS["text_primary"],
+            anchor="w",
+        )
+        welcome_title.pack(fill="x")
+
+        welcome_sub = ctk.CTkLabel(
+            banner_inner,
+            text="Real-time operational dashboard for blood reserves, donor registrations, and active clinical allocation requests.",
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS["text_muted"],
+            anchor="w",
+        )
+        welcome_sub.pack(fill="x", pady=(3, 0))
+
+        # ─── Metrics Grid (StatCards with animated counters) ───
         stats_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        stats_frame.pack(fill="x", pady=10)
+        stats_frame.pack(fill="x", pady=(0, 24))
 
-        # Fetch stats
         blood_donors = get_donor_count()
         organ_donors = get_organ_donor_count()
         total_blood = get_total_blood_units()
@@ -116,54 +148,123 @@ class DashboardView(ctk.CTkFrame):
         pending_organ = get_pending_organ_requests_count()
 
         cards_data = [
-            ("Blood Donors", blood_donors, "🩸", "#1a3a5c"),
-            ("Organ Donors", organ_donors, "🫀", "#3a1a5c"),
-            ("Blood Units", total_blood, "📦", "#1a5c3a"),
-            ("Pending Blood Req.", pending_blood, "📋", "#5c3a1a"),
-            ("Pending Organ Req.", pending_organ, "📝", "#5c1a3a"),
+            ("Blood Donors", blood_donors, "🩸", COLORS["accent_red"], "Donors"),
+            ("Blood Units Stock", total_blood, "📦", COLORS["accent_emerald"], "Units"),
+            ("Organ Pledges", organ_donors, "🫀", COLORS["accent_purple"], "Registered"),
+            ("Blood Requests", pending_blood, "📋", COLORS["accent_amber"], "Pending"),
+            ("Organ Requests", pending_organ, "🏥", "#0284c7", "Queue"),
         ]
 
-        for i, (title, value, icon, color) in enumerate(cards_data):
+        for i, (title, value, icon, accent_col, badge) in enumerate(cards_data):
             card = StatCard(
-                stats_frame, title=title, value=value, icon=icon, color=color
+                stats_frame,
+                title=title,
+                value=value,
+                icon=icon,
+                accent_color=accent_col,
+                badge_text=badge,
             )
-            card.grid(row=0, column=i, padx=10, pady=10, sticky="nsew")
+            card.grid(row=0, column=i, padx=6, pady=4, sticky="nsew")
             stats_frame.columnconfigure(i, weight=1)
 
-        # Quick actions section
-        actions_label = ctk.CTkLabel(
-            self.content_frame,
-            text="Quick Actions",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#ffffff",
-            anchor="w",
+        # ─── Dual Panels Section: Inventory Levels + Quick Actions ───
+        panels_row = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        panels_row.pack(fill="x", pady=(0, 20))
+        panels_row.columnconfigure(0, weight=3)
+        panels_row.columnconfigure(1, weight=2)
+
+        # Left Panel: Blood Group Stock Progress Bars
+        inventory_panel = ctk.CTkFrame(
+            panels_row,
+            fg_color=COLORS["surface"],
+            corner_radius=18,
+            border_width=1,
+            border_color=COLORS["surface_border"],
         )
-        actions_label.pack(fill="x", pady=(30, 10))
+        inventory_panel.grid(row=0, column=0, padx=(0, 12), sticky="nsew")
 
-        actions_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        actions_frame.pack(fill="x")
+        inv_header = ctk.CTkFrame(inventory_panel, fg_color="transparent")
+        inv_header.pack(fill="x", padx=20, pady=(16, 12))
 
-        actions = [
-            ("🩸 Add Blood Donor", "blood_donors"),
-            ("🫀 Add Organ Donor", "organ_donors"),
-            ("📋 New Blood Request", "blood_requests"),
-            ("📝 New Organ Request", "organ_requests"),
-            ("📦 Manage Inventory", "blood_inventory"),
+        ctk.CTkLabel(
+            inv_header,
+            text="🩸 Blood Reserves by Group",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COLORS["text_primary"],
+        ).pack(side="left")
+
+        # Render visual blood group chips
+        inv_items = get_all_inventory()
+        inv_grid = ctk.CTkFrame(inventory_panel, fg_color="transparent")
+        inv_grid.pack(fill="both", expand=True, padx=20, pady=(0, 16))
+
+        for idx, item in enumerate(inv_items):
+            r = idx // 4
+            c = idx % 4
+            inv_grid.columnconfigure(c, weight=1)
+
+            unit_count = item["units_available"]
+            chip = ctk.CTkFrame(inv_grid, fg_color="#0f172a", corner_radius=12, border_width=1, border_color="#1e293b")
+            chip.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
+
+            group_lbl = ctk.CTkLabel(
+                chip,
+                text=item["blood_group"],
+                font=ctk.CTkFont(size=16, weight="bold"),
+                text_color=COLORS["accent_red"],
+            )
+            group_lbl.pack(pady=(8, 0))
+
+            qty_lbl = ctk.CTkLabel(
+                chip,
+                text=f"{unit_count} Units",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=COLORS["text_secondary"],
+            )
+            qty_lbl.pack(pady=(0, 8))
+
+        # Right Panel: Workflow Shortcuts
+        actions_panel = ctk.CTkFrame(
+            panels_row,
+            fg_color=COLORS["surface"],
+            corner_radius=18,
+            border_width=1,
+            border_color=COLORS["surface_border"],
+        )
+        actions_panel.grid(row=0, column=1, sticky="nsew")
+
+        act_header = ctk.CTkFrame(actions_panel, fg_color="transparent")
+        act_header.pack(fill="x", padx=20, pady=(16, 12))
+
+        ctk.CTkLabel(
+            act_header,
+            text="⚡ Clinical Workflow Actions",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COLORS["text_primary"],
+        ).pack(side="left")
+
+        actions_list = [
+            ("➕ Register New Blood Donor", "blood_donors", COLORS["primary"], COLORS["primary_hover"]),
+            ("🫀 Register Organ Donor Pledge", "organ_donors", COLORS["accent_purple"], COLORS["accent_purple_hover"]),
+            ("📋 File Blood Requisition", "blood_requests", COLORS["accent_amber"], "#b45309"),
+            ("📦 Update Inventory Reserves", "blood_inventory", COLORS["accent_emerald"], COLORS["accent_emerald_hover"]),
+            ("📊 Generate & Export Reports", "reports", "#475569", "#334155"),
         ]
 
-        for i, (text, key) in enumerate(actions):
+        for text, key, col, hover_col in actions_list:
             btn = ctk.CTkButton(
-                actions_frame,
+                actions_panel,
                 text=text,
-                font=ctk.CTkFont(size=13),
-                height=40,
-                corner_radius=8,
-                fg_color=COLORS["primary"],
+                font=ctk.CTkFont(size=13, weight="bold"),
+                height=38,
+                corner_radius=10,
+                fg_color=col,
+                hover_color=hover_col,
+                anchor="w",
                 command=lambda k=key: self._quick_navigate(k),
             )
-            btn.grid(row=0, column=i, padx=8, pady=5, sticky="ew")
-            actions_frame.columnconfigure(i, weight=1)
+            btn.pack(fill="x", padx=18, pady=4)
 
     def _quick_navigate(self, key):
-        """Navigate to a view from the quick action buttons."""
+        """Navigate smoothly from workflow buttons."""
         self.sidebar.set_active(key)

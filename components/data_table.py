@@ -1,79 +1,80 @@
 """
-Reusable data table component.
-Wraps tkinter Treeview with sorting, selection, and styling.
+Reusable modern data table component with dark theme,
+custom rounded borders, zebra row striping, and sort indicators.
 """
 
 import tkinter as tk
 from tkinter import ttk
 import customtkinter as ctk
+from config import COLORS
 
 
 class DataTable(ctk.CTkFrame):
     """
-    A reusable sortable table component.
-
-    Usage:
-        table = DataTable(parent, columns=[("ID", 50), ("Name", 150), ...])
-        table.insert_rows([(1, "John"), (2, "Jane"), ...])
-        selected = table.get_selected_row()
+    A modernized sortable data table component.
     """
 
     def __init__(self, master, columns: list, height=15, **kwargs):
-        """
-        Args:
-            columns: List of (column_name, width) tuples.
-            height: Number of visible rows.
-        """
-        super().__init__(master, **kwargs)
+        super().__init__(
+            master,
+            fg_color=COLORS["surface"],
+            corner_radius=14,
+            border_width=1,
+            border_color=COLORS["surface_border"],
+            **kwargs,
+        )
 
         self.column_names = [col[0] for col in columns]
         self.column_widths = [col[1] for col in columns]
 
-        # ─── Style ───────────────────────────────────────────────
+        # ─── Configure Treeview Style ────────────────────────────
         style = ttk.Style()
         style.theme_use("clam")
         style.configure(
-            "Custom.Treeview",
-            background="#2b2b2b",
-            foreground="#ffffff",
-            fieldbackground="#2b2b2b",
-            rowheight=32,
-            font=("Segoe UI", 11),
+            "Modern.Treeview",
+            background="#111827",
+            foreground="#f3f4f6",
+            fieldbackground="#111827",
+            rowheight=34,
+            font=("Segoe UI", 10),
+            borderwidth=0,
         )
         style.configure(
-            "Custom.Treeview.Heading",
-            background="#1a1a2e",
-            foreground="#ffffff",
-            font=("Segoe UI", 11, "bold"),
+            "Modern.Treeview.Heading",
+            background="#1f2937",
+            foreground="#9ca3af",
+            font=("Segoe UI", 10, "bold"),
             relief="flat",
+            padding=(6, 8),
         )
         style.map(
-            "Custom.Treeview",
-            background=[("selected", "#1f6aa5")],
+            "Modern.Treeview",
+            background=[("selected", "#2563eb")],
             foreground=[("selected", "#ffffff")],
         )
         style.map(
-            "Custom.Treeview.Heading",
-            background=[("active", "#16213e")],
+            "Modern.Treeview.Heading",
+            background=[("active", "#374151")],
+            foreground=[("active", "#ffffff")],
         )
 
-        # ─── Treeview ────────────────────────────────────────────
+        # Container
         tree_frame = ctk.CTkFrame(self, fg_color="transparent")
-        tree_frame.pack(fill="both", expand=True)
+        tree_frame.pack(fill="both", expand=True, padx=8, pady=8)
 
         self.tree = ttk.Treeview(
             tree_frame,
             columns=self.column_names,
             show="headings",
             height=height,
-            style="Custom.Treeview",
+            style="Modern.Treeview",
             selectmode="browse",
         )
 
         # Configure columns
         for name, width in columns:
             self.tree.heading(name, text=name, command=lambda c=name: self._sort_by(c))
-            self.tree.column(name, width=width, minwidth=40, anchor="center")
+            self.tree.column(name, width=width, minwidth=50, anchor="center")
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
@@ -82,15 +83,19 @@ class DataTable(ctk.CTkFrame):
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Sort state
+        # Tags for alternating subtle zebra stripes
+        self.tree.tag_configure("evenrow", background="#111827")
+        self.tree.tag_configure("oddrow", background="#151f30")
+
         self._sort_column = None
         self._sort_reverse = False
 
     def insert_rows(self, rows: list):
-        """Clear and insert new rows."""
+        """Clear and insert new rows with alternating colors."""
         self.clear()
-        for row in rows:
-            self.tree.insert("", "end", values=row)
+        for idx, row in enumerate(rows):
+            tag = "evenrow" if idx % 2 == 0 else "oddrow"
+            self.tree.insert("", "end", values=row, tags=(tag,))
 
     def clear(self):
         """Remove all rows."""
@@ -109,11 +114,9 @@ class DataTable(ctk.CTkFrame):
         return [self.tree.item(item)["values"] for item in self.tree.get_children()]
 
     def bind_select(self, callback):
-        """Bind a callback to row selection events."""
         self.tree.bind("<<TreeviewSelect>>", callback)
 
     def bind_double_click(self, callback):
-        """Bind a callback to double-click events."""
         self.tree.bind("<Double-1>", callback)
 
     def _sort_by(self, column: str):
@@ -126,11 +129,12 @@ class DataTable(ctk.CTkFrame):
 
         items = [(self.tree.set(k, column), k) for k in self.tree.get_children()]
 
-        # Try numeric sort, fall back to string
         try:
             items.sort(key=lambda t: float(t[0]), reverse=self._sort_reverse)
-        except ValueError:
-            items.sort(key=lambda t: t[0].lower(), reverse=self._sort_reverse)
+        except (ValueError, TypeError):
+            items.sort(key=lambda t: str(t[0]).lower(), reverse=self._sort_reverse)
 
         for index, (_, k) in enumerate(items):
             self.tree.move(k, "", index)
+            tag = "evenrow" if index % 2 == 0 else "oddrow"
+            self.tree.item(k, tags=(tag,))
