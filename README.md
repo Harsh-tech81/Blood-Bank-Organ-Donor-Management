@@ -347,16 +347,32 @@ No installation required! Simply open the precompiled file:
 
 ---
 
-## 🧪 Running the Automated Test Suite
+## 🧪 Testing Strategy and Automated Test Suite
 
-To verify all core business logic, hashing algorithms, and database constraints:
+Run the canonical test command from the repository root:
 ```powershell
 python -m unittest discover -s tests -v
 ```
-All **51 tests** validate:
-- Bcrypt salt variability and password verification.
-- Input validation boundaries (donor age 18–65, regex email, valid blood groups).
-- Inventory arithmetic (positive additions and non-negative stock depletion guards).
+
+The suite is organized by test level:
+
+- **Unit tests:** password hashing, validators, model arithmetic, and CRUD behavior.
+- **Integration tests:** donor registration → donation → inventory update; blood request → stock deduction → status update; and organ consent → review → matching → allocation.
+- **System workflow tests:** critical user journeys in
+  [`tests/test_critical_workflows.py`](tests/test_critical_workflows.py), executed in this order:
+  1. Insufficient blood stock leaves the request pending.
+  2. Withdrawn organ-donor consent blocks an existing allocation proposal.
+  3. A matched donor cannot be allocated to a second request.
+  4. An authenticated staff account cannot register an administrator.
+  5. Invalid blood groups and negative quantities are rejected.
+  6. Records remain available after database reinitialization.
+- **Regression tests:** database migrations, FIFO batch consumption, audit logs, and allocation history.
+
+The tests use isolated temporary SQLite databases, so test data is not written to
+the operator's normal application database. Docker is not required for this
+SQLite-backed test suite. Performance, security penetration, and usability
+testing remain follow-up test layers; the current tests include role-authorization
+and parameter-validation regression coverage.
 
 ---
 
