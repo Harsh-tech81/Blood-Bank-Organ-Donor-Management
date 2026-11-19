@@ -48,9 +48,18 @@ def initialize_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Create tables from schema.sql
+    # Create tables from schema.sql. Indexes referencing columns added by the
+    # migration block below must be deferred until those columns exist.
     schema_sql = get_schema_sql()
-    cursor.executescript(schema_sql)
+    schema_statements = schema_sql.split(";")
+    deferred_indexes = []
+    table_statements = []
+    for statement in schema_statements:
+        if statement.strip().upper().startswith("CREATE INDEX") or statement.strip().upper().startswith("CREATE UNIQUE INDEX"):
+            deferred_indexes.append(statement)
+        else:
+            table_statements.append(statement)
+    cursor.executescript(";".join(table_statements))
 
     # Rebuild the pre-workflow allocation table so its status constraint can
     # represent proposals and authority approval without losing history.
@@ -231,6 +240,9 @@ def initialize_db():
            )
            WHERE hospital_id IS NULL"""
     )
+
+    for index_statement in deferred_indexes:
+        cursor.execute(index_statement)
 
     conn.commit()
     conn.close()
