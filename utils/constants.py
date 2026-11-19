@@ -43,6 +43,7 @@ SIDEBAR_MENU = [
     {"label": "🫀  Organ Donors",    "key": "organ_donors"},
     {"label": "📋  Blood Requests",  "key": "blood_requests"},
     {"label": "📝  Organ Requests",  "key": "organ_requests"},
+    {"label": "🔗  Allocation History", "key": "allocations"},
     {"label": "📄  Reports",         "key": "reports"},
 ]
 
@@ -100,4 +101,14 @@ INVENTORY_TABLE_COLUMNS = [
     ("Next Expiry", 120),
     ("Batch Units", 100),
     ("Last Updated", 200),
+]
+
+ALLOCATION_TABLE_COLUMNS = [
+    ("ID", 50),
+    ("Donor", 150),
+    ("Recipient", 150),
+    ("Organ", 100),
+    ("Hospital", 150),
+    ("Status", 100),
+    ("Allocated On", 140),
 ]

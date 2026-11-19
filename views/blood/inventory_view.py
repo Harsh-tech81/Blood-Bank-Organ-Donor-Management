@@ -4,7 +4,7 @@ Blood inventory view — manage blood stock levels.
 
 import customtkinter as ctk
 from components.data_table import DataTable
-from components.dialogs import alert_dialog, error_dialog
+from components.dialogs import alert_dialog, error_dialog, confirm_dialog
 from services.inventory_service import get_inventory, add_blood_units, remove_blood_units
 from utils.constants import INVENTORY_TABLE_COLUMNS
 from config import COLORS
@@ -117,6 +117,12 @@ class InventoryView(ctk.CTkFrame):
             return
 
         blood_group = selected[1]
+        if not confirm_dialog(
+            "Confirm Stock Removal",
+            f"Remove {units} unit(s) from {blood_group}?\n\n"
+            "This changes the available reserve and is recorded in the workflow.",
+        ):
+            return
         success, msg = remove_blood_units(blood_group, units)
         if success:
             alert_dialog("Success", f"Removed {units} unit(s) from {blood_group}.")

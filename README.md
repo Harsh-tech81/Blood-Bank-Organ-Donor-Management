@@ -39,6 +39,10 @@
 - 📊 **Clinical Auditing & One-Click CSV Export:**
   - Full audit trail (`activity_logs`) recording the active username, administrative action, and timestamp.
   - One-click CSV export for donors, donations, stock levels, requests, and activity logs.
+- ✨ **Operator-focused UX:**
+  - Paginated, sortable tables with clear empty states for large registries and filtered queues.
+  - Dedicated read-only allocation history for donor, recipient, hospital, status, and timestamp traceability.
+  - Recent activity surfaced on the dashboard and confirmation prompts for stock-changing operations.
 - 📦 **Zero-Config Windows Deployment:**
   - Standalone `.exe` package generated with PyInstaller.
   - Runs natively on any 64-bit Windows PC without requiring Python, Git, or external dependencies.
@@ -128,13 +132,14 @@ BloodBank-OrganDonor/
 │   ├── blood/                     # Blood donor CRUD & inventory views
 │   ├── organ/                     # Organ donor CRUD & consent management
 │   ├── requests/                  # Blood & organ emergency triage request views
+│   ├── organ/allocation_history_view.py # Read-only allocation audit history
 │   └── reports/                   # Reporting & CSV export center
 │
 ├── components/                    # Reusable UI Component Library
 │   ├── sidebar.py                 # Modern navigation drawer with user profile chip
 │   ├── navbar.py                  # Header bar with live clock & breadcrumbs
 │   ├── stat_card.py               # Glassmorphism cards with animated counters
-│   ├── data_table.py              # Styled Treeview with zebra striping & sorting
+│   ├── data_table.py              # Styled Treeview with paging, empty states & sorting
 │   ├── form_fields.py             # Standardized form entries & dropdowns
 │   └── dialogs.py                 # Native confirmation & notification modals
 │
