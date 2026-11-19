@@ -1,8 +1,28 @@
 """
 Blood request model — CRUD operations for blood_requests table.
+Supports strict triage ordering (Critical -> Urgent -> Normal) so
+high-need patients are prioritized at the top.
 """
 
 from database.connection import get_connection
+
+# SQL CASE statement to sort by medical urgency priority
+URGENCY_ORDER_SQL = """
+CASE urgency
+    WHEN 'Critical' THEN 1
+    WHEN 'Urgent' THEN 2
+    WHEN 'Normal' THEN 3
+    ELSE 4
+END,
+CASE status
+    WHEN 'Pending' THEN 1
+    WHEN 'Approved' THEN 2
+    WHEN 'Fulfilled' THEN 3
+    WHEN 'Rejected' THEN 4
+    ELSE 5
+END,
+id DESC
+"""
 
 
 def add_blood_request(patient_name, blood_group, units_needed=1,
@@ -23,10 +43,10 @@ def add_blood_request(patient_name, blood_group, units_needed=1,
 
 
 def get_all_blood_requests():
-    """Fetch all blood requests."""
+    """Fetch all blood requests prioritized by Critical/Urgent status first."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM blood_requests ORDER BY id DESC")
+    cursor.execute(f"SELECT * FROM blood_requests ORDER BY {URGENCY_ORDER_SQL}")
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
@@ -78,7 +98,7 @@ def get_pending_blood_requests_count():
 
 
 def search_blood_requests(patient_name="", blood_group="", status=""):
-    """Search blood requests by filters."""
+    """Search blood requests with triage order preserved."""
     conn = get_connection()
     cursor = conn.cursor()
     query = "SELECT * FROM blood_requests WHERE 1=1"
@@ -94,7 +114,7 @@ def search_blood_requests(patient_name="", blood_group="", status=""):
         query += " AND status = ?"
         params.append(status.strip())
 
-    query += " ORDER BY id DESC"
+    query += f" ORDER BY {URGENCY_ORDER_SQL}"
     cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()

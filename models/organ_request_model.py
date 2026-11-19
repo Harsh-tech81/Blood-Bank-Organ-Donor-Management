@@ -1,8 +1,27 @@
 """
 Organ request model — CRUD operations for organ_requests table.
+Supports strict triage ordering (Critical -> Urgent -> Normal) so
+high-need patients are prioritized at the top.
 """
 
 from database.connection import get_connection
+
+URGENCY_ORDER_SQL = """
+CASE urgency
+    WHEN 'Critical' THEN 1
+    WHEN 'Urgent' THEN 2
+    WHEN 'Normal' THEN 3
+    ELSE 4
+END,
+CASE status
+    WHEN 'Pending' THEN 1
+    WHEN 'Matched' THEN 2
+    WHEN 'Fulfilled' THEN 3
+    WHEN 'Rejected' THEN 4
+    ELSE 5
+END,
+id DESC
+"""
 
 
 def add_organ_request(patient_name, organ_type, blood_group="",
@@ -23,10 +42,10 @@ def add_organ_request(patient_name, organ_type, blood_group="",
 
 
 def get_all_organ_requests():
-    """Fetch all organ requests."""
+    """Fetch all organ requests ordered by clinical urgency."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM organ_requests ORDER BY id DESC")
+    cursor.execute(f"SELECT * FROM organ_requests ORDER BY {URGENCY_ORDER_SQL}")
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
@@ -78,7 +97,7 @@ def get_pending_organ_requests_count():
 
 
 def search_organ_requests(patient_name="", organ_type="", status=""):
-    """Search organ requests by filters."""
+    """Search organ requests with triage priority preserved."""
     conn = get_connection()
     cursor = conn.cursor()
     query = "SELECT * FROM organ_requests WHERE 1=1"
@@ -94,7 +113,7 @@ def search_organ_requests(patient_name="", organ_type="", status=""):
         query += " AND status = ?"
         params.append(status.strip())
 
-    query += " ORDER BY id DESC"
+    query += f" ORDER BY {URGENCY_ORDER_SQL}"
     cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
