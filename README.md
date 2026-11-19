@@ -18,7 +18,8 @@
   - Blood and organ requests keep backward-compatible display fields while referencing reusable `recipients` and `hospitals` records.
   - Existing databases are migrated and backfilled automatically on startup.
 - 🧪 **Traceable Blood Batches & Organ Allocations:**
-  - Donations create FIFO inventory batches with collection and expiry dates.
+  - Donations and manually added stock create FIFO inventory batches with collection and expiry dates.
+  - Expired batches are automatically excluded from available stock and marked `Expired`.
   - Organ matching and fulfillment preserve donor-recipient-hospital allocation history.
 - 🫀 **Organ Donor Registry & Bioethical Consent Tracking:**
   - Dedicated pledge management supporting Kidney, Liver, Heart, Lungs, Pancreas, Cornea, etc.

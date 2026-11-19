@@ -5,6 +5,7 @@ Blood inventory service — business logic for stock management.
 from models.inventory_model import (
     get_all_inventory, get_inventory_by_blood_group,
     update_stock, increment_units, decrement_units, get_total_blood_units,
+    get_inventory_batches,
 )
 from models.activity_log_model import log_action
 
@@ -44,3 +45,8 @@ def set_blood_units(blood_group, units):
 def get_total_units():
     """Get total blood units across all groups."""
     return get_total_blood_units()
+
+
+def get_batches(blood_group=None, include_expired=False):
+    """Get dated inventory batches for operational or audit views."""
+    return get_inventory_batches(blood_group, include_expired)

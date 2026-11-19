@@ -9,6 +9,7 @@ import sqlite3
 from database.connection import get_connection
 from models.hospital_model import get_or_create_hospital
 from models.recipient_model import get_or_create_recipient
+from models.inventory_model import _consume_batches, _expire_batches
 
 # SQL CASE statement to sort by medical urgency priority
 URGENCY_ORDER_SQL = """
@@ -104,6 +105,7 @@ def fulfill_blood_request(request_id):
             conn.rollback()
             return True, ""
 
+        _expire_batches(conn, request["blood_group"])
         inventory = conn.execute(
             "SELECT units_available FROM blood_inventory WHERE blood_group = ?",
             (request["blood_group"],),
@@ -117,29 +119,7 @@ def fulfill_blood_request(request_id):
                 f"{request['units_needed']})."
             )
 
-        # Consume the oldest non-expired batches first. Legacy aggregate stock
-        # remains supported for inventory entered before batch tracking.
-        remaining = request["units_needed"]
-        batches = conn.execute(
-            """SELECT id, units_remaining FROM blood_inventory_batches
-               WHERE blood_group = ? AND units_remaining > 0
-                 AND date(expiry_date) >= date('now')
-               ORDER BY date(expiry_date), id""",
-            (request["blood_group"],),
-        ).fetchall()
-        for batch in batches:
-            consumed = min(remaining, batch["units_remaining"])
-            conn.execute(
-                """UPDATE blood_inventory_batches
-                   SET units_remaining = units_remaining - ?,
-                       status = CASE WHEN units_remaining - ? = 0
-                                     THEN 'Exhausted' ELSE status END
-                   WHERE id = ?""",
-                (consumed, consumed, batch["id"]),
-            )
-            remaining -= consumed
-            if remaining == 0:
-                break
+        _consume_batches(conn, request["blood_group"], request["units_needed"])
 
         inventory_update = conn.execute(
             """UPDATE blood_inventory

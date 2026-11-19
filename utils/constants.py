@@ -96,5 +96,7 @@ INVENTORY_TABLE_COLUMNS = [
     ("ID", 50),
     ("Blood Group", 150),
     ("Units Available", 150),
+    ("Next Expiry", 120),
+    ("Batch Units", 100),
     ("Last Updated", 200),
 ]

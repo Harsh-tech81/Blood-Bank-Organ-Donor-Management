@@ -71,6 +71,8 @@ class InventoryView(ctk.CTkFrame):
         inventory = get_inventory()
         rows = [
             (item["id"], item["blood_group"], item["units_available"],
+             item.get("next_expiry_date") or "No dated stock",
+             item.get("batch_units_available", 0),
              item.get("last_updated", "")[:19])
             for item in inventory
         ]

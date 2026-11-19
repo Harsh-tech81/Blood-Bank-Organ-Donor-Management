@@ -9,6 +9,7 @@ from database import initialize_db
 from database.connection import get_connection
 from models.donor_model import add_donor, record_donation_with_batch
 from models.blood_request_model import add_blood_request, fulfill_blood_request
+from models.inventory_model import get_inventory_by_blood_group, increment_units
 from models.organ_donor_model import add_organ_donor
 from models.organ_request_model import add_organ_request
 from models.organ_allocation_model import get_all_allocations
@@ -60,6 +61,28 @@ class TestDatabaseEnhancements(unittest.TestCase):
         ).fetchone()
         conn.close()
         self.assertEqual(tuple(batch), (2, 1, "Available"))
+
+    def test_manual_stock_is_dated_and_expired_stock_is_removed(self):
+        self.assertTrue(increment_units("A+", 3))
+        conn = get_connection()
+        conn.execute(
+            """UPDATE blood_inventory_batches
+               SET expiry_date = date('now', '-1 day')
+               WHERE blood_group = 'A+'"""
+        )
+        conn.commit()
+        conn.close()
+
+        inventory = get_inventory_by_blood_group("A+")
+
+        self.assertEqual(inventory["units_available"], 0)
+        self.assertEqual(inventory["batch_units_available"], 0)
+        conn = get_connection()
+        status = conn.execute(
+            "SELECT status FROM blood_inventory_batches WHERE blood_group = 'A+'"
+        ).fetchone()["status"]
+        conn.close()
+        self.assertEqual(status, "Expired")
 
     def test_organ_allocation_history_tracks_fulfillment(self):
         donor_id = add_organ_donor(
