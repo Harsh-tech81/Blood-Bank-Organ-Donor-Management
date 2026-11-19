@@ -27,7 +27,7 @@ URGENCY_LEVELS = ["Normal", "Urgent", "Critical"]
 
 # ─── Request Statuses ────────────────────────────────────────────
 BLOOD_REQUEST_STATUSES = ["Pending", "Approved", "Fulfilled", "Rejected"]
-ORGAN_REQUEST_STATUSES = ["Pending", "Matched", "Fulfilled", "Rejected"]
+ORGAN_REQUEST_STATUSES = ["Pending", "Proposed", "Matched", "Fulfilled", "Rejected"]
 
 # ─── Consent Statuses (Organ Donors) ────────────────────────────
 CONSENT_STATUSES = ["Pending", "Consented", "Withdrawn"]
@@ -43,6 +43,7 @@ SIDEBAR_MENU = [
     {"label": "🫀  Organ Donors",    "key": "organ_donors"},
     {"label": "📋  Blood Requests",  "key": "blood_requests"},
     {"label": "📝  Organ Requests",  "key": "organ_requests"},
+    {"label": "🔗  Allocation History", "key": "allocations"},
     {"label": "📄  Reports",         "key": "reports"},
 ]
 
@@ -66,6 +67,7 @@ ORGAN_DONOR_TABLE_COLUMNS = [
     ("Blood Group", 100),
     ("Organ", 100),
     ("Consent", 90),
+    ("Review", 90),
     ("Status", 90),
     ("Registered On", 120),
 ]
@@ -96,5 +98,17 @@ INVENTORY_TABLE_COLUMNS = [
     ("ID", 50),
     ("Blood Group", 150),
     ("Units Available", 150),
+    ("Next Expiry", 120),
+    ("Batch Units", 100),
     ("Last Updated", 200),
+]
+
+ALLOCATION_TABLE_COLUMNS = [
+    ("ID", 50),
+    ("Donor", 150),
+    ("Recipient", 150),
+    ("Organ", 100),
+    ("Hospital", 150),
+    ("Status", 100),
+    ("Allocated On", 140),
 ]

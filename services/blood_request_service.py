@@ -7,9 +7,9 @@ automatically deducts blood inventory upon fulfillment, and updates activity log
 from models.blood_request_model import (
     add_blood_request, get_all_blood_requests, update_blood_request_status,
     delete_blood_request, search_blood_requests, get_pending_blood_requests_count,
-    get_blood_request_by_id,
+    get_blood_request_by_id, fulfill_blood_request,
 )
-from models.inventory_model import get_inventory_by_blood_group, decrement_units
+from models.inventory_model import get_inventory_by_blood_group
 from models.activity_log_model import log_action
 from utils.validators import validate_name, validate_blood_group, validate_positive_integer
 
@@ -66,20 +66,17 @@ def change_blood_request_status(request_id, new_status):
     blood_group = req["blood_group"]
     units = req["units_needed"]
 
-    if new_status == "Fulfilled" and current_status != "Fulfilled":
-        # Check stock before deducting
-        stock_record = get_inventory_by_blood_group(blood_group)
-        available = stock_record["units_available"] if stock_record else 0
-        if available < units:
-            return False, f"Cannot fulfill request: Only {available} unit(s) of {blood_group} available in inventory (Need {units})."
+    if new_status == "Fulfilled":
+        fulfilled, error = fulfill_blood_request(request_id)
+        if not fulfilled:
+            return False, error
 
-        # Decrement stock
-        deducted = decrement_units(blood_group, units)
-        if not deducted:
-            return False, "Failed to deduct units from blood inventory."
-
-        log_action("Inventory deducted on fulfillment", "blood_inventory",
-                   f"Deducted {units} unit(s) of {blood_group} for Request #{request_id}")
+        if current_status != "Fulfilled":
+            log_action("Inventory deducted on fulfillment", "blood_inventory",
+                       f"Deducted {units} unit(s) of {blood_group} for Request #{request_id}")
+        log_action("Updated blood request status", "blood_requests",
+                   f"Request #{request_id} status changed from {current_status} to Fulfilled")
+        return True, f"Request #{request_id} updated to 'Fulfilled' successfully."
 
     success = update_blood_request_status(request_id, new_status)
     if success:

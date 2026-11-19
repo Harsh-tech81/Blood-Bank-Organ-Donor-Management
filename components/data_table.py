@@ -14,7 +14,7 @@ class DataTable(ctk.CTkFrame):
     A modernized sortable data table component.
     """
 
-    def __init__(self, master, columns: list, height=15, **kwargs):
+    def __init__(self, master, columns: list, height=15, page_size=10, **kwargs):
         super().__init__(
             master,
             fg_color=COLORS["surface"],
@@ -26,6 +26,9 @@ class DataTable(ctk.CTkFrame):
 
         self.column_names = [col[0] for col in columns]
         self.column_widths = [col[1] for col in columns]
+        self.page_size = page_size
+        self._rows = []
+        self._page = 0
 
         # ─── Configure Treeview Style ────────────────────────────
         style = ttk.Style()
@@ -83,6 +86,33 @@ class DataTable(ctk.CTkFrame):
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+        footer = ctk.CTkFrame(self, fg_color="transparent")
+        footer.pack(fill="x", padx=10, pady=(0, 8))
+        self.page_label = ctk.CTkLabel(
+            footer, text="No records", font=ctk.CTkFont(size=11),
+            text_color=COLORS["text_muted"],
+        )
+        self.page_label.pack(side="left")
+        self.previous_button = ctk.CTkButton(
+            footer, text="‹", width=32, height=26, corner_radius=8,
+            fg_color=COLORS["secondary"], hover_color=COLORS["surface_hover"],
+            command=self.previous_page,
+        )
+        self.previous_button.pack(side="right", padx=(4, 0))
+        self.next_button = ctk.CTkButton(
+            footer, text="›", width=32, height=26, corner_radius=8,
+            fg_color=COLORS["secondary"], hover_color=COLORS["surface_hover"],
+            command=self.next_page,
+        )
+        self.next_button.pack(side="right")
+
+        self.empty_label = ctk.CTkLabel(
+            tree_frame,
+            text="No records match the current filters.",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COLORS["text_muted"],
+        )
+
         # Tags for alternating subtle zebra stripes
         self.tree.tag_configure("evenrow", background="#111827")
         self.tree.tag_configure("oddrow", background="#151f30")
@@ -91,16 +121,49 @@ class DataTable(ctk.CTkFrame):
         self._sort_reverse = False
 
     def insert_rows(self, rows: list):
-        """Clear and insert new rows with alternating colors."""
+        """Replace the table data and render the first page."""
+        self._rows = list(rows)
+        self._page = 0
+        self._render_page()
+
+    def _render_page(self):
+        """Render the current page and update paging controls."""
         self.clear()
-        for idx, row in enumerate(rows):
+        page_count = max(1, (len(self._rows) + self.page_size - 1) // self.page_size)
+        self._page = min(self._page, page_count - 1)
+        start = self._page * self.page_size
+        for idx, row in enumerate(self._rows[start:start + self.page_size]):
             tag = "evenrow" if idx % 2 == 0 else "oddrow"
             self.tree.insert("", "end", values=row, tags=(tag,))
+        if self._rows:
+            self.empty_label.place_forget()
+            self.page_label.configure(
+                text=f"{start + 1}–{min(start + self.page_size, len(self._rows))} of {len(self._rows)}"
+            )
+        else:
+            self.empty_label.place(relx=0.5, rely=0.5, anchor="center")
+            self.page_label.configure(text="No records")
+        self.previous_button.configure(state="normal" if self._page > 0 else "disabled")
+        self.next_button.configure(
+            state="normal" if self._page < page_count - 1 else "disabled"
+        )
 
     def clear(self):
         """Remove all rows."""
         for item in self.tree.get_children():
             self.tree.delete(item)
+
+    def previous_page(self):
+        """Show the previous page of records."""
+        if self._page > 0:
+            self._page -= 1
+            self._render_page()
+
+    def next_page(self):
+        """Show the next page of records."""
+        if (self._page + 1) * self.page_size < len(self._rows):
+            self._page += 1
+            self._render_page()
 
     def get_selected_row(self):
         """Get the values of the selected row, or None."""
@@ -111,7 +174,7 @@ class DataTable(ctk.CTkFrame):
 
     def get_all_rows(self) -> list:
         """Get all rows as a list of tuples."""
-        return [self.tree.item(item)["values"] for item in self.tree.get_children()]
+        return list(self._rows)
 
     def bind_select(self, callback):
         self.tree.bind("<<TreeviewSelect>>", callback)
@@ -127,14 +190,14 @@ class DataTable(ctk.CTkFrame):
             self._sort_column = column
             self._sort_reverse = False
 
-        items = [(self.tree.set(k, column), k) for k in self.tree.get_children()]
+        column_index = self.column_names.index(column)
+        items = [(row[column_index], row) for row in self._rows]
 
         try:
             items.sort(key=lambda t: float(t[0]), reverse=self._sort_reverse)
         except (ValueError, TypeError):
             items.sort(key=lambda t: str(t[0]).lower(), reverse=self._sort_reverse)
 
-        for index, (_, k) in enumerate(items):
-            self.tree.move(k, "", index)
-            tag = "evenrow" if index % 2 == 0 else "oddrow"
-            self.tree.item(k, tags=(tag,))
+        self._rows = [values for _, values in items]
+        self._page = 0
+        self._render_page()

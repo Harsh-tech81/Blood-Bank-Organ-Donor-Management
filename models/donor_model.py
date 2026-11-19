@@ -4,6 +4,7 @@ Blood donor model — CRUD operations for blood_donors and blood_donations table
 
 from database.connection import get_connection
 from utils.helpers import get_current_timestamp
+from datetime import date, timedelta
 
 
 # ─── Blood Donors ────────────────────────────────────────────────
@@ -116,6 +117,51 @@ def record_donation(donor_id, units=1, notes=""):
     donation_id = cursor.lastrowid
     conn.close()
     return donation_id
+
+
+def record_donation_with_batch(donor_id, blood_group, units=1, notes="",
+                               shelf_life_days=42):
+    """Record a donation, its expiring batch, and aggregate stock atomically."""
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        donation = conn.execute(
+            """INSERT INTO blood_donations
+               (donor_id, donation_date, units, notes)
+               VALUES (?, CURRENT_TIMESTAMP, ?, ?)""",
+            (donor_id, units, notes),
+        )
+        donation_id = donation.lastrowid
+        expiry_date = date.today() + timedelta(days=shelf_life_days)
+        inventory = conn.execute(
+            "SELECT id FROM blood_inventory WHERE blood_group = ?",
+            (blood_group,),
+        ).fetchone()
+        if not inventory:
+            raise ValueError(f"Unknown blood group: {blood_group}")
+        conn.execute(
+            """INSERT INTO blood_inventory_batches
+               (donation_id, inventory_id, blood_group, units_received,
+                units_remaining, expiry_date)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (donation_id, inventory["id"], blood_group, units, units,
+             expiry_date.isoformat()),
+        )
+        updated = conn.execute(
+            """UPDATE blood_inventory
+               SET units_available = units_available + ?, last_updated = CURRENT_TIMESTAMP
+               WHERE blood_group = ?""",
+            (units, blood_group),
+        )
+        if updated.rowcount != 1:
+            raise ValueError(f"Unknown blood group: {blood_group}")
+        conn.commit()
+        return donation_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def get_donation_history(donor_id):

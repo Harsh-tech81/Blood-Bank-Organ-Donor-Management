@@ -5,9 +5,8 @@ Wraps model calls with validation and activity logging.
 
 from models.donor_model import (
     add_donor, get_all_donors, get_donor_by_id, update_donor,
-    delete_donor, search_donors, record_donation,
+    delete_donor, search_donors, record_donation_with_batch,
 )
-from models.inventory_model import increment_units
 from models.activity_log_model import log_action
 from utils.validators import (
     validate_name, validate_donor_age, validate_blood_group,
@@ -70,8 +69,7 @@ def remove_donor(donor_id):
 
 def add_donation(donor_id, blood_group, units=1, notes=""):
     """Record a donation and update inventory."""
-    donation_id = record_donation(donor_id, units, notes)
-    increment_units(blood_group, units)
+    donation_id = record_donation_with_batch(donor_id, blood_group, units, notes)
     log_action("Recorded blood donation", "blood_donations",
                f"Donor ID: {donor_id}, Units: {units}, Group: {blood_group}")
     return donation_id

@@ -14,6 +14,7 @@ from models.organ_donor_model import get_organ_donor_count
 from models.inventory_model import get_total_blood_units, get_all_inventory
 from models.blood_request_model import get_pending_blood_requests_count
 from models.organ_request_model import get_pending_organ_requests_count
+from models.activity_log_model import get_recent_logs
 
 
 class DashboardView(ctk.CTkFrame):
@@ -66,6 +67,7 @@ class DashboardView(ctk.CTkFrame):
             "organ_donors": "Organ Registry & Pledges",
             "blood_requests": "Blood Allocation Demands",
             "organ_requests": "Organ Match Requisitions",
+            "allocations": "Allocation History",
             "reports": "Clinical Analytics & Exports",
         }
 
@@ -98,6 +100,10 @@ class DashboardView(ctk.CTkFrame):
         elif key == "organ_requests":
             from views.requests.organ_request_view import OrganRequestView
             view = OrganRequestView(self.content_frame)
+            view.pack(fill="both", expand=True)
+        elif key == "allocations":
+            from views.organ.allocation_history_view import AllocationHistoryView
+            view = AllocationHistoryView(self.content_frame)
             view.pack(fill="both", expand=True)
         elif key == "reports":
             from views.reports.report_view import ReportView
@@ -264,6 +270,37 @@ class DashboardView(ctk.CTkFrame):
                 command=lambda k=key: self._quick_navigate(k),
             )
             btn.pack(fill="x", padx=18, pady=4)
+
+        # Recent activity gives operators a quick audit trail without leaving overview.
+        activity_panel = ctk.CTkFrame(
+            self.content_frame, fg_color=COLORS["surface"], corner_radius=18,
+            border_width=1, border_color=COLORS["surface_border"],
+        )
+        activity_panel.pack(fill="x", pady=(0, 20))
+        ctk.CTkLabel(
+            activity_panel, text="🕘 Recent Activity",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COLORS["text_primary"], anchor="w",
+        ).pack(fill="x", padx=20, pady=(16, 8))
+        logs = get_recent_logs(5)
+        if not logs:
+            ctk.CTkLabel(
+                activity_panel, text="No activity recorded yet.",
+                font=ctk.CTkFont(size=12), text_color=COLORS["text_muted"],
+            ).pack(anchor="w", padx=20, pady=(0, 16))
+        else:
+            for log in logs:
+                row = ctk.CTkFrame(activity_panel, fg_color="transparent")
+                row.pack(fill="x", padx=20, pady=3)
+                ctk.CTkLabel(
+                    row, text=f"•  {log.get('action', 'Activity')}",
+                    font=ctk.CTkFont(size=12, weight="bold"),
+                    text_color=COLORS["text_secondary"], anchor="w",
+                ).pack(side="left")
+                ctk.CTkLabel(
+                    row, text=f"{log.get('performed_by', 'system')}  ·  {(log.get('timestamp') or '')[:16]}",
+                    font=ctk.CTkFont(size=11), text_color=COLORS["text_muted"],
+                ).pack(side="right")
 
     def _quick_navigate(self, key):
         """Navigate smoothly from workflow buttons."""

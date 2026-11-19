@@ -4,6 +4,7 @@ registry match verification, and donor allocation workflows.
 """
 
 import customtkinter as ctk
+from tkinter import simpledialog
 from components.data_table import DataTable
 from components.form_fields import (
     create_label_entry, create_blood_group_dropdown,
@@ -12,9 +13,11 @@ from components.form_fields import (
 from components.dialogs import confirm_dialog, alert_dialog, error_dialog
 from services.organ_request_service import (
     create_organ_request, change_organ_request_status,
-    remove_organ_request, list_organ_requests,
+    remove_organ_request, list_organ_requests, review_request,
+    propose_allocation, authorize_transplant,
 )
 from models.organ_donor_model import search_organ_donors
+from models.organ_request_model import get_organ_request_by_id
 from utils.constants import ORGAN_REQUEST_TABLE_COLUMNS, ORGAN_TYPES, ORGAN_REQUEST_STATUSES
 from config import COLORS
 
@@ -88,7 +91,7 @@ class OrganRequestView(ctk.CTkFrame):
         btn_frame.pack(fill="x")
 
         match_btn = ctk.CTkButton(
-            btn_frame, text="🔗 Verify & Match Donor", width=180, height=36,
+            btn_frame, text="🔗 Reserve Authorized", width=180, height=36,
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color=COLORS["primary"], hover_color=COLORS["primary_hover"],
             command=lambda: self._handle_match(),
@@ -96,7 +99,7 @@ class OrganRequestView(ctk.CTkFrame):
         match_btn.pack(side="left", padx=(0, 8))
 
         fulfill_btn = ctk.CTkButton(
-            btn_frame, text="✅ Allocate & Fulfill", width=170, height=36,
+            btn_frame, text="✅ Complete Workflow", width=170, height=36,
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color=COLORS["accent_emerald"], hover_color=COLORS["accent_emerald_hover"],
             command=lambda: self._handle_fulfill(),
@@ -109,6 +112,24 @@ class OrganRequestView(ctk.CTkFrame):
             command=lambda: self._update_status("Rejected"),
         )
         reject_btn.pack(side="left", padx=(0, 8))
+
+        review_btn = ctk.CTkButton(
+            btn_frame, text="📝 Review Request", width=140, height=36,
+            fg_color=COLORS["info"], command=self._review_selected,
+        )
+        review_btn.pack(side="left", padx=(0, 8))
+
+        proposal_btn = ctk.CTkButton(
+            btn_frame, text="🔎 Propose Candidate", width=150, height=36,
+            fg_color=COLORS["primary"], command=self._propose_selected,
+        )
+        proposal_btn.pack(side="left", padx=(0, 8))
+
+        authority_btn = ctk.CTkButton(
+            btn_frame, text="📄 Record Authority", width=150, height=36,
+            fg_color=COLORS["warning"], command=self._authorize_selected,
+        )
+        authority_btn.pack(side="left", padx=(0, 8))
 
         delete_btn = ctk.CTkButton(
             btn_frame, text="🗑️ Delete", width=100, height=36,
@@ -164,11 +185,22 @@ class OrganRequestView(ctk.CTkFrame):
 
         def update_registry_preview(choice):
             matches = search_organ_donors(organ_type=choice)
-            consented = [d for d in matches if d.get("consent_status") == "Consented" and d.get("status") == "Available"]
+            consented = [
+                d for d in matches
+                if d.get("consent_status") == "Consented"
+                and d.get("status") == "Available"
+                and d.get("review_status") == "Verified"
+            ]
             if consented:
-                match_info_lbl.configure(text=f"✓ Registry: {len(consented)} consented donor(s) available", text_color=COLORS["success"])
+                match_info_lbl.configure(
+                    text=f"✓ Registry: {len(consented)} reviewed donor candidate(s)",
+                    text_color=COLORS["success"],
+                )
             else:
-                match_info_lbl.configure(text="⚠️ Registry: 0 consented donors currently available (Will queue)", text_color=COLORS["warning"])
+                match_info_lbl.configure(
+                    text="⚠️ Registry: no reviewed donor candidates currently available",
+                    text_color=COLORS["warning"],
+                )
 
         organ_dd.configure(command=update_registry_preview)
         update_registry_preview(organ_dd.get())
@@ -208,7 +240,11 @@ class OrganRequestView(ctk.CTkFrame):
         patient = selected[1]
         organ = selected[2]
 
-        if confirm_dialog("Match Donor", f"Search and match an eligible consented {organ} donor for patient '{patient}'?"):
+        if confirm_dialog(
+            "Reserve Authorized Allocation",
+            f"Reserve the approved allocation proposal for '{patient}'?\n\n"
+            "This records workflow authorization; it does not determine clinical eligibility.",
+        ):
             success, msg = change_organ_request_status(req_id, "Matched")
             if success:
                 alert_dialog("Donor Matched", msg)
@@ -230,7 +266,8 @@ class OrganRequestView(ctk.CTkFrame):
         if confirm_dialog(
             "Confirm Organ Allocation",
             f"Fulfill request #{req_id} for '{patient}'?\n\n"
-            f"This will allocate a verified consented donor from the registry and transition the donor to 'Donated'.",
+            f"This will complete the recorded workflow for '{organ}'.\n\n"
+            "Confirm that the external clinical and authority procedures have already occurred.",
         ):
             success, msg = change_organ_request_status(req_id, "Fulfilled")
             if success:
@@ -238,6 +275,70 @@ class OrganRequestView(ctk.CTkFrame):
                 self._refresh_table()
             else:
                 error_dialog("Allocation Blocked", msg)
+
+    def _review_selected(self):
+        """Record recipient/request review."""
+        selected = self.table.get_selected_row()
+        if not selected:
+            error_dialog("Selection Required", "Please select a requisition.")
+            return
+        notes = simpledialog.askstring(
+            "Request Review Notes",
+            "Enter review notes or supporting document reference:",
+            parent=self,
+        )
+        if not notes:
+            return
+        success, msg = review_request(selected[0], "Approved", notes)
+        if success:
+            alert_dialog("Review Recorded", msg)
+            self._refresh_table()
+        else:
+            error_dialog("Review Blocked", msg)
+
+    def _propose_selected(self):
+        """Create a non-clinical registry candidate proposal."""
+        selected = self.table.get_selected_row()
+        if not selected:
+            error_dialog("Selection Required", "Please select a requisition.")
+            return
+        success, msg = propose_allocation(selected[0])
+        if success:
+            alert_dialog("Proposal Recorded", msg)
+            self._refresh_table()
+        else:
+            error_dialog("Proposal Blocked", msg)
+
+    def _authorize_selected(self):
+        """Record external transplant-authority approval."""
+        selected = self.table.get_selected_row()
+        if not selected:
+            error_dialog("Selection Required", "Please select a requisition.")
+            return
+        request = get_organ_request_by_id(selected[0])
+        if not request or not request.get("matched_donor_id"):
+            error_dialog("Authorization Blocked", "Create an allocation proposal first.")
+            return
+        authority = simpledialog.askstring(
+            "Transplant Authority", "Authority name:", parent=self,
+        )
+        reference = simpledialog.askstring(
+            "Authorization Reference", "External reference number:", parent=self,
+        )
+        notes = simpledialog.askstring(
+            "Authorization Notes", "Approval notes:", parent=self,
+        )
+        if not authority or not reference or not notes:
+            error_dialog("Authorization Required", "All authority fields are required.")
+            return
+        success, msg = authorize_transplant(
+            selected[0], request["matched_donor_id"], authority, reference, notes,
+        )
+        if success:
+            alert_dialog("Authority Recorded", msg)
+            self._refresh_table()
+        else:
+            error_dialog("Authorization Blocked", msg)
 
     def _update_status(self, status):
         """Update the status of the selected request."""

@@ -11,6 +11,7 @@ from config import (
     DEFAULT_STAFF_USERNAME, DEFAULT_STAFF_PASSWORD,
 )
 from utils.constants import BLOOD_GROUPS
+from models.inventory_model import backfill_legacy_inventory_batches
 
 
 def seed_default_data():
@@ -53,6 +54,7 @@ def seed_default_data():
                 )
 
         conn.commit()
+        backfill_legacy_inventory_batches()
     except Exception as e:
         conn.rollback()
         raise e
