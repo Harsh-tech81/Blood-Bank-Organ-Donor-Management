@@ -3,16 +3,38 @@
 -- Database Schema — SQLite
 -- ============================================
 
--- 1. Users (Admin authentication)
+PRAGMA foreign_keys = ON;
+
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'admin',
+    role TEXT NOT NULL DEFAULT 'admin'
+        CHECK(role IN ('Administrator', 'Medical Staff', 'Medical Officer', 'admin')),
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Blood Donors
+CREATE TABLE IF NOT EXISTS recipients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    age INTEGER CHECK(age IS NULL OR (age >= 0 AND age <= 130)),
+    gender TEXT CHECK(gender IS NULL OR gender IN ('Male', 'Female', 'Other')),
+    blood_group TEXT,
+    phone TEXT,
+    email TEXT,
+    address TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS hospitals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    phone TEXT,
+    email TEXT,
+    address TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS blood_donors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -25,25 +47,37 @@ CREATE TABLE IF NOT EXISTS blood_donors (
     registered_on TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Blood Donations (History — linked to donors)
 CREATE TABLE IF NOT EXISTS blood_donations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     donor_id INTEGER NOT NULL,
     donation_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    units INTEGER NOT NULL DEFAULT 1,
+    units INTEGER NOT NULL DEFAULT 1 CHECK(units > 0),
     notes TEXT,
     FOREIGN KEY (donor_id) REFERENCES blood_donors(id) ON DELETE CASCADE
 );
 
--- 4. Blood Inventory (One row per blood group)
 CREATE TABLE IF NOT EXISTS blood_inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     blood_group TEXT UNIQUE NOT NULL,
-    units_available INTEGER NOT NULL DEFAULT 0,
+    units_available INTEGER NOT NULL DEFAULT 0 CHECK(units_available >= 0),
     last_updated TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Organ Donors (With consent tracking)
+CREATE TABLE IF NOT EXISTS blood_inventory_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    donation_id INTEGER,
+    inventory_id INTEGER NOT NULL,
+    blood_group TEXT NOT NULL,
+    units_received INTEGER NOT NULL CHECK(units_received > 0),
+    units_remaining INTEGER NOT NULL CHECK(units_remaining >= 0 AND units_remaining <= units_received),
+    collection_date TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expiry_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Available'
+        CHECK(status IN ('Available', 'Exhausted', 'Expired')),
+    FOREIGN KEY (donation_id) REFERENCES blood_donations(id) ON DELETE SET NULL,
+    FOREIGN KEY (inventory_id) REFERENCES blood_inventory(id) ON DELETE RESTRICT
+);
+
 CREATE TABLE IF NOT EXISTS organ_donors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -61,23 +95,27 @@ CREATE TABLE IF NOT EXISTS organ_donors (
     registered_on TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. Blood Requests
 CREATE TABLE IF NOT EXISTS blood_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient_id INTEGER,
+    hospital_id INTEGER,
     patient_name TEXT NOT NULL,
     blood_group TEXT NOT NULL,
-    units_needed INTEGER NOT NULL DEFAULT 1,
+    units_needed INTEGER NOT NULL DEFAULT 1 CHECK(units_needed > 0),
     hospital TEXT,
     urgency TEXT NOT NULL DEFAULT 'Normal'
         CHECK(urgency IN ('Normal', 'Urgent', 'Critical')),
     status TEXT NOT NULL DEFAULT 'Pending'
         CHECK(status IN ('Pending', 'Approved', 'Fulfilled', 'Rejected')),
-    requested_on TEXT DEFAULT CURRENT_TIMESTAMP
+    requested_on TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (recipient_id) REFERENCES recipients(id) ON DELETE SET NULL,
+    FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE SET NULL
 );
 
--- 7. Organ Requests
 CREATE TABLE IF NOT EXISTS organ_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient_id INTEGER,
+    hospital_id INTEGER,
     patient_name TEXT NOT NULL,
     organ_type TEXT NOT NULL,
     blood_group TEXT,
@@ -88,10 +126,28 @@ CREATE TABLE IF NOT EXISTS organ_requests (
         CHECK(status IN ('Pending', 'Matched', 'Fulfilled', 'Rejected')),
     matched_donor_id INTEGER,
     requested_on TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (matched_donor_id) REFERENCES organ_donors(id)
+    FOREIGN KEY (recipient_id) REFERENCES recipients(id) ON DELETE SET NULL,
+    FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE SET NULL,
+    FOREIGN KEY (matched_donor_id) REFERENCES organ_donors(id) ON DELETE SET NULL
 );
 
--- 8. Activity Logs (Audit trail)
+CREATE TABLE IF NOT EXISTS organ_allocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    organ_request_id INTEGER NOT NULL,
+    donor_id INTEGER NOT NULL,
+    recipient_id INTEGER,
+    hospital_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'Reserved'
+        CHECK(status IN ('Reserved', 'Fulfilled', 'Cancelled')),
+    allocated_on TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fulfilled_on TEXT,
+    notes TEXT,
+    FOREIGN KEY (organ_request_id) REFERENCES organ_requests(id) ON DELETE CASCADE,
+    FOREIGN KEY (donor_id) REFERENCES organ_donors(id) ON DELETE RESTRICT,
+    FOREIGN KEY (recipient_id) REFERENCES recipients(id) ON DELETE SET NULL,
+    FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS activity_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     action TEXT NOT NULL,
@@ -100,3 +156,19 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     performed_by TEXT,
     timestamp TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_blood_batches_fifo
+    ON blood_inventory_batches (blood_group, expiry_date, id);
+CREATE INDEX IF NOT EXISTS idx_blood_requests_recipient
+    ON blood_requests (recipient_id);
+CREATE INDEX IF NOT EXISTS idx_blood_requests_hospital
+    ON blood_requests (hospital_id);
+CREATE INDEX IF NOT EXISTS idx_organ_requests_recipient
+    ON organ_requests (recipient_id);
+CREATE INDEX IF NOT EXISTS idx_organ_requests_hospital
+    ON organ_requests (hospital_id);
+CREATE INDEX IF NOT EXISTS idx_organ_allocations_request
+    ON organ_allocations (organ_request_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_organ_allocation
+    ON organ_allocations (organ_request_id)
+    WHERE status IN ('Reserved', 'Fulfilled');

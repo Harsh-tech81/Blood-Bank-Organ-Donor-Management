@@ -7,6 +7,8 @@ high-need patients are prioritized at the top.
 import sqlite3
 
 from database.connection import get_connection
+from models.hospital_model import get_or_create_hospital
+from models.recipient_model import get_or_create_recipient
 
 # SQL CASE statement to sort by medical urgency priority
 URGENCY_ORDER_SQL = """
@@ -30,13 +32,15 @@ id DESC
 def add_blood_request(patient_name, blood_group, units_needed=1,
                       hospital="", urgency="Normal"):
     """Add a new blood request. Returns the new request ID."""
+    recipient_id = get_or_create_recipient(patient_name, blood_group)
+    hospital_id = get_or_create_hospital(hospital)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO blood_requests
-           (patient_name, blood_group, units_needed, hospital, urgency)
-           VALUES (?, ?, ?, ?, ?)""",
-        (patient_name, blood_group, int(units_needed), hospital, urgency),
+           (recipient_id, hospital_id, patient_name, blood_group, units_needed, hospital, urgency)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (recipient_id, hospital_id, patient_name, blood_group, int(units_needed), hospital, urgency),
     )
     conn.commit()
     request_id = cursor.lastrowid
@@ -112,6 +116,30 @@ def fulfill_blood_request(request_id):
                 f"{request['blood_group']} available in inventory (Need "
                 f"{request['units_needed']})."
             )
+
+        # Consume the oldest non-expired batches first. Legacy aggregate stock
+        # remains supported for inventory entered before batch tracking.
+        remaining = request["units_needed"]
+        batches = conn.execute(
+            """SELECT id, units_remaining FROM blood_inventory_batches
+               WHERE blood_group = ? AND units_remaining > 0
+                 AND date(expiry_date) >= date('now')
+               ORDER BY date(expiry_date), id""",
+            (request["blood_group"],),
+        ).fetchall()
+        for batch in batches:
+            consumed = min(remaining, batch["units_remaining"])
+            conn.execute(
+                """UPDATE blood_inventory_batches
+                   SET units_remaining = units_remaining - ?,
+                       status = CASE WHEN units_remaining - ? = 0
+                                     THEN 'Exhausted' ELSE status END
+                   WHERE id = ?""",
+                (consumed, consumed, batch["id"]),
+            )
+            remaining -= consumed
+            if remaining == 0:
+                break
 
         inventory_update = conn.execute(
             """UPDATE blood_inventory

@@ -14,6 +14,12 @@
   - **Demand Registration during Shortages:** Patients and hospitals can file requisitions even during zero-stock deficits to log unmet demand and alert emergency donation drives.
   - **Fulfillment Guards:** The system strictly blocks attempts to fulfill requests when available inventory is insufficient (e.g., requesting 3 units when only 1 is on hand).
   - **Automatic Stock Depletion:** Verified fulfillments automatically deduct the exact units from the real-time blood inventory and record the audit log.
+- 🧾 **Normalized Recipient & Hospital Records:**
+  - Blood and organ requests keep backward-compatible display fields while referencing reusable `recipients` and `hospitals` records.
+  - Existing databases are migrated and backfilled automatically on startup.
+- 🧪 **Traceable Blood Batches & Organ Allocations:**
+  - Donations create FIFO inventory batches with collection and expiry dates.
+  - Organ matching and fulfillment preserve donor-recipient-hospital allocation history.
 - 🫀 **Organ Donor Registry & Bioethical Consent Tracking:**
   - Dedicated pledge management supporting Kidney, Liver, Heart, Lungs, Pancreas, Cornea, etc.
   - Explicit **Legal Consent Tracking** (`Pending`, `Consented`, `Withdrawn`) to ensure bioethical and legal compliance.
@@ -89,7 +95,7 @@ BloodBank-OrganDonor/
 │
 ├── database/
 │   ├── connection.py              # SQLite connection manager & AppData persistence
-│   ├── schema.sql                 # 8 normalized relational database tables
+│   ├── schema.sql                 # Relational schema, constraints, indexes & migrations
 │   └── seed.py                    # Default data seeder (bcrypt admin/staff & stock)
 │
 ├── models/                        # Data Access Layer (parameterized queries)
@@ -99,6 +105,9 @@ BloodBank-OrganDonor/
 │   ├── organ_donor_model.py       # Organ registry & consent status queries
 │   ├── blood_request_model.py     # Blood demand records with triage sorting
 │   ├── organ_request_model.py     # Organ match queues with triage sorting
+│   ├── recipient_model.py         # Normalized recipient records
+│   ├── hospital_model.py          # Normalized hospital records
+│   ├── organ_allocation_model.py  # Donor-recipient allocation history
 │   └── activity_log_model.py      # System audit logging
 │
 ├── services/                      # Business Logic & Validation Layer
@@ -142,7 +151,7 @@ BloodBank-OrganDonor/
 
 ---
 
-## 🗄️ Relational Database Schema (8 Tables)
+## 🗄️ Relational Database Schema (12 Tables)
 
 ```mermaid
 erDiagram
@@ -152,6 +161,22 @@ erDiagram
         text password_hash
         text role
         text created_at
+    }
+
+    recipients {
+        int id PK
+        text name
+        text blood_group
+        text phone
+        text email
+    }
+
+    hospitals {
+        int id PK
+        text name UK
+        text phone
+        text email
+        text address
     }
 
     blood_donors {
@@ -179,6 +204,17 @@ erDiagram
         text blood_group UK
         int units_available
         text last_updated
+    }
+
+    blood_inventory_batches {
+        int id PK
+        int donation_id FK
+        int inventory_id FK
+        text blood_group
+        int units_received
+        int units_remaining
+        text expiry_date
+        text status
     }
 
     organ_donors {
@@ -215,6 +251,17 @@ erDiagram
         text requested_on
     }
 
+    organ_allocations {
+        int id PK
+        int organ_request_id FK
+        int donor_id FK
+        int recipient_id FK
+        int hospital_id FK
+        text status
+        text allocated_on
+        text fulfilled_on
+    }
+
     activity_logs {
         int id PK
         text action
@@ -225,9 +272,32 @@ erDiagram
     }
 
     blood_donors ||--o{ blood_donations : "donates"
-    blood_donations }o--|| blood_inventory : "updates"
+    blood_donations ||--o{ blood_inventory_batches : "creates"
+    blood_inventory_batches }o--|| blood_inventory : "aggregates"
+    recipients ||--o{ blood_requests : "places"
+    recipients ||--o{ organ_requests : "places"
+    hospitals ||--o{ blood_requests : "receives"
+    hospitals ||--o{ organ_requests : "receives"
+    organ_requests ||--o{ organ_allocations : "records"
+    organ_donors ||--o{ organ_allocations : "matches"
+    recipients ||--o{ organ_allocations : "receives"
+    hospitals ||--o{ organ_allocations : "hosts"
     users ||--o{ activity_logs : "records"
 ```
+
+The original eight operational tables remain compatible. The schema now also
+contains:
+
+| Table | Purpose |
+|:---|:---|
+| `recipients` | Independent patient/recipient records reused by requests |
+| `hospitals` | Canonical hospital directory referenced by requests and allocations |
+| `organ_allocations` | Durable donor-to-recipient allocation and status history |
+| `blood_inventory_batches` | Donation-level stock tracking with FIFO consumption and expiry |
+
+Database initialization enables foreign keys, adds missing nullable reference
+columns to older databases, and backfills recipient/hospital references from
+legacy request fields without deleting existing data.
 
 ---
 

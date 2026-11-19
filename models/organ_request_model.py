@@ -7,6 +7,8 @@ high-need patients are prioritized at the top.
 import sqlite3
 
 from database.connection import get_connection
+from models.hospital_model import get_or_create_hospital
+from models.recipient_model import get_or_create_recipient
 
 URGENCY_ORDER_SQL = """
 CASE urgency
@@ -29,13 +31,15 @@ id DESC
 def add_organ_request(patient_name, organ_type, blood_group="",
                       hospital="", urgency="Normal"):
     """Add a new organ request. Returns the new request ID."""
+    recipient_id = get_or_create_recipient(patient_name, blood_group)
+    hospital_id = get_or_create_hospital(hospital)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO organ_requests
-           (patient_name, organ_type, blood_group, hospital, urgency)
-           VALUES (?, ?, ?, ?, ?)""",
-        (patient_name, organ_type, blood_group, hospital, urgency),
+           (recipient_id, hospital_id, patient_name, organ_type, blood_group, hospital, urgency)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (recipient_id, hospital_id, patient_name, organ_type, blood_group, hospital, urgency),
     )
     conn.commit()
     request_id = cursor.lastrowid
@@ -137,6 +141,12 @@ def transition_organ_request_status(request_id, new_status):
             )
             if donor_update.rowcount != 1 or request_update.rowcount != 1:
                 raise sqlite3.IntegrityError("The donor reservation could not be secured.")
+            conn.execute(
+                """INSERT INTO organ_allocations
+                   (organ_request_id, donor_id, recipient_id, hospital_id, status)
+                   VALUES (?, ?, ?, ?, 'Reserved')""",
+                (request_id, donor["id"], request["recipient_id"], request["hospital_id"]),
+            )
 
         elif new_status == "Fulfilled":
             if current_status != "Matched" or not request["matched_donor_id"]:
@@ -175,6 +185,14 @@ def transition_organ_request_status(request_id, new_status):
             )
             if donor_update.rowcount != 1 or request_update.rowcount != 1:
                 raise sqlite3.IntegrityError("The donor reservation could not be fulfilled.")
+            allocation_update = conn.execute(
+                """UPDATE organ_allocations
+                   SET status = 'Fulfilled', fulfilled_on = CURRENT_TIMESTAMP
+                   WHERE organ_request_id = ? AND donor_id = ? AND status = 'Reserved'""",
+                (request_id, donor["id"]),
+            )
+            if allocation_update.rowcount != 1:
+                raise sqlite3.IntegrityError("The organ allocation history could not be completed.")
 
         elif new_status == "Rejected" and current_status == "Matched":
             if request["matched_donor_id"]:
@@ -182,6 +200,11 @@ def transition_organ_request_status(request_id, new_status):
                     "UPDATE organ_donors SET status = 'Available' "
                     "WHERE id = ? AND status = 'Matched'",
                     (request["matched_donor_id"],),
+                )
+                conn.execute(
+                    """UPDATE organ_allocations SET status = 'Cancelled'
+                       WHERE organ_request_id = ? AND donor_id = ? AND status = 'Reserved'""",
+                    (request_id, request["matched_donor_id"]),
                 )
             conn.execute(
                 "UPDATE organ_requests SET status = 'Rejected', matched_donor_id = NULL "
