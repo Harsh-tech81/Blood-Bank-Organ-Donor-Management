@@ -4,6 +4,8 @@ Supports strict triage ordering (Critical -> Urgent -> Normal) so
 high-need patients are prioritized at the top.
 """
 
+import sqlite3
+
 from database.connection import get_connection
 
 # SQL CASE statement to sort by medical urgency priority
@@ -74,6 +76,64 @@ def update_blood_request_status(request_id, status):
     affected = cursor.rowcount
     conn.close()
     return affected > 0
+
+
+def fulfill_blood_request(request_id):
+    """
+    Deduct inventory and fulfill a blood request atomically.
+
+    Both updates use the same transaction so a failed request update cannot
+    leave inventory permanently reduced.
+    """
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        request = conn.execute(
+            "SELECT blood_group, units_needed, status FROM blood_requests WHERE id = ?",
+            (request_id,),
+        ).fetchone()
+        if not request:
+            conn.rollback()
+            return False, "Request record not found."
+
+        if request["status"] == "Fulfilled":
+            conn.rollback()
+            return True, ""
+
+        inventory = conn.execute(
+            "SELECT units_available FROM blood_inventory WHERE blood_group = ?",
+            (request["blood_group"],),
+        ).fetchone()
+        available = inventory["units_available"] if inventory else 0
+        if available < request["units_needed"]:
+            conn.rollback()
+            return False, (
+                f"Cannot fulfill request: Only {available} unit(s) of "
+                f"{request['blood_group']} available in inventory (Need "
+                f"{request['units_needed']})."
+            )
+
+        inventory_update = conn.execute(
+            """UPDATE blood_inventory
+               SET units_available = units_available - ?, last_updated = CURRENT_TIMESTAMP
+               WHERE blood_group = ? AND units_available >= ?""",
+            (request["units_needed"], request["blood_group"], request["units_needed"]),
+        )
+        request_update = conn.execute(
+            "UPDATE blood_requests SET status = 'Fulfilled' "
+            "WHERE id = ? AND status = ?",
+            (request_id, request["status"]),
+        )
+        if inventory_update.rowcount != 1 or request_update.rowcount != 1:
+            raise sqlite3.IntegrityError("Blood fulfillment could not update both records.")
+
+        conn.commit()
+        return True, ""
+    except sqlite3.Error as exc:
+        conn.rollback()
+        return False, f"Blood fulfillment failed: {exc}"
+    finally:
+        conn.close()
 
 
 def delete_blood_request(request_id):

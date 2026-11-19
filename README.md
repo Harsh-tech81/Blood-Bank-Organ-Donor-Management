@@ -67,7 +67,7 @@ flowchart TD
     D -->|In Stock / Consented Donor| E[Staff Clicks 'Verify & Fulfill']
     D -->|Deficit / Shortage| F[Requisition Remains Pending on Waiting List]
     
-    E --> G[Deduct Exact Units from Stock / Mark Donor as Donated]
+    E --> G[Atomically Deduct Exact Units and Update Request]
     G --> H[Status Updated to 'Fulfilled' + Activity Logged]
     
     F --> I[Staff Blocks Fulfillment with Warning Modal]
