@@ -29,7 +29,7 @@
   - Multi-user support with built-in role separation (**Administrator**, **Medical Staff**, and **Medical Officers**).
   - Public registration creates **Staff Member** accounts only; privileged accounts can be created only by an authenticated Administrator through the service layer.
 - 📊 **Clinical Auditing & One-Click CSV Export:**
-  - Full audit trail (`activity_logs`) recording administrative actions with timestamps.
+  - Full audit trail (`activity_logs`) recording the active username, administrative action, and timestamp.
   - One-click CSV export for donors, donations, stock levels, requests, and activity logs.
 - 📦 **Zero-Config Windows Deployment:**
   - Standalone `.exe` package generated with PyInstaller.

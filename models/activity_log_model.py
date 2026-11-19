@@ -3,11 +3,16 @@ Activity log model — records important actions for audit trail.
 """
 
 from database.connection import get_connection
+from services.auth_service import get_current_user
 from utils.helpers import get_current_timestamp
 
 
-def log_action(action, module, details="", performed_by="admin"):
-    """Record an activity log entry."""
+def log_action(action, module, details="", performed_by=None):
+    """Record an activity log entry attributed to the active user."""
+    if performed_by is None:
+        current_user = get_current_user()
+        performed_by = current_user["username"] if current_user else "system"
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
