@@ -86,7 +86,9 @@ CREATE TABLE IF NOT EXISTS organ_requests (
         CHECK(urgency IN ('Normal', 'Urgent', 'Critical')),
     status TEXT NOT NULL DEFAULT 'Pending'
         CHECK(status IN ('Pending', 'Matched', 'Fulfilled', 'Rejected')),
-    requested_on TEXT DEFAULT CURRENT_TIMESTAMP
+    matched_donor_id INTEGER,
+    requested_on TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (matched_donor_id) REFERENCES organ_donors(id)
 );
 
 -- 8. Activity Logs (Audit trail)

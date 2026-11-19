@@ -128,7 +128,8 @@ class LoginView(ctk.CTkFrame):
         )
         self.password_entry.pack(fill="x", pady=(0, 8))
 
-        # Role Selector (only shown in registration mode)
+        # Public registration can only create staff accounts. Privileged
+        # account creation is enforced by the authentication service.
         self.role_frame = ctk.CTkFrame(self.inputs_frame, fg_color="transparent")
         r_label = ctk.CTkLabel(
             self.role_frame,
@@ -141,7 +142,7 @@ class LoginView(ctk.CTkFrame):
 
         self.role_combo = ctk.CTkComboBox(
             self.role_frame,
-            values=["Staff Member", "Medical Officer", "Administrator"],
+            values=["Staff Member"],
             height=38,
             font=ctk.CTkFont(size=13),
             state="readonly",

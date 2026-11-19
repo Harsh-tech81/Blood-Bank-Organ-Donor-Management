@@ -52,6 +52,19 @@ def initialize_db():
     schema_sql = get_schema_sql()
     cursor.executescript(schema_sql)
 
+    # Migrate databases created before donor reservations were persisted.
+    cursor.execute("PRAGMA table_info(organ_requests)")
+    organ_request_columns = {row[1] for row in cursor.fetchall()}
+    if "matched_donor_id" not in organ_request_columns:
+        cursor.execute(
+            "ALTER TABLE organ_requests ADD COLUMN matched_donor_id INTEGER "
+            "REFERENCES organ_donors(id)"
+        )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_organ_requests_matched_donor "
+        "ON organ_requests(matched_donor_id)"
+    )
+
     conn.commit()
     conn.close()
 

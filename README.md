@@ -27,7 +27,7 @@
 - 🔐 **Enterprise Role-Based Authentication:**
   - Salted and hashed passwords utilizing the industry-standard **`bcrypt`** algorithm.
   - Multi-user support with built-in role separation (**Administrator**, **Medical Staff**, and **Medical Officers**).
-  - Ability to register new staff accounts directly from the portal.
+  - Public registration creates **Staff Member** accounts only; privileged accounts can be created only by an authenticated Administrator through the service layer.
 - 📊 **Clinical Auditing & One-Click CSV Export:**
   - Full audit trail (`activity_logs`) recording administrative actions with timestamps.
   - One-click CSV export for donors, donations, stock levels, requests, and activity logs.
@@ -47,7 +47,7 @@ The database is automatically initialized and pre-seeded on first launch. You ca
 | `staff` | `staff123` | **Medical Staff** | Day-to-day operations, donor registration, triage, and status workflows |
 
 > [!TIP]
-> **Need a new user?** Simply switch the tab on the login screen to **"Create Staff Account"** to register a new user into the database!
+> **Need a staff user?** Switch the tab on the login screen to **"Create Staff Account"**. Administrator and Medical Officer accounts cannot be self-created or promoted through public registration.
 
 ---
 

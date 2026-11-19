@@ -18,7 +18,7 @@ def get_user_by_username(username):
     return None
 
 
-def create_user(username, password_hash, role="admin"):
+def create_user(username, password_hash, role="Staff Member"):
     """Create a new user. Returns the new user ID."""
     conn = get_connection()
     cursor = conn.cursor()
